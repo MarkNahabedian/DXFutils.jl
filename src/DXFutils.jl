@@ -1,5 +1,5 @@
 module DXFutils
 
-# Write your package code here.
+include("dxf_groups.jl")
 
 end

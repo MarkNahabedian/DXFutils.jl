@@ -1,6 +1,19 @@
 using DXFutils
 using Test
 
-@testset "DXFutils.jl" begin
-    # Write your tests here.
+
+@testset "groupcode" begin
+    for (key, value) in DXFutils.group_code_registry
+        @test key == groupcode(value)
+    end
 end
+
+@testset "DXF Groups" begin
+    @test DXFutils.group_code_registry[0] == EntityType
+    @test groupcode(EntityType) == 0
+    grp = DXFutils.EntityType("SECTION")
+    @test groupcode(grp) == 0
+    @test grp.value == "SECTION"
+end
+
+
