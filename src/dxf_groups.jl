@@ -20,7 +20,13 @@ function defDXFGroup(group_supertype::Type, code::DXFGroupCode, name=nothing)
     end
     eval(quote
              struct $name <: $group_supertype
+                 line::Int
                  value::$(valuetype(group_supertype))
+             end
+         end)
+    eval(quote
+             function $name(value::$(valuetype(group_supertype)))
+                 $name(-1, value)
              end
          end)
     eval(quote
@@ -50,7 +56,7 @@ function valuetype(::Type{T}) where {T <: RawGroup}
 end
 
 function read_value(group_type::Type{T}, in) where {T <: RawGroup}
-    group_type(readline(in))
+    group_type(in.line, readline(in))
 end
 
 
@@ -69,10 +75,12 @@ function valuetype(::Type{T}) where {T <: StringGroup}
 end
 
 function read_value(group_type::Type{T}, in) where {T <: StringGroup}
-    group_type(strip(readline(in)))
+    group_type(in.line, strip(readline(in)))
 end
 
 defDXFGroup(StringGroup, 0, :EntityType)
+
+Base.:(==)(a::EntityType, b::EntityType) = a.value == b.value
 
 defDXFGroup(StringGroup, 3)
 
@@ -96,7 +104,7 @@ function valuetype(::Type{T}) where {T <: IntegerGroup}
 end
 
 function read_value(group_type::Type{T}, in) where {T <: IntegerGroup}
-    group_type(parse(Int64, strip(readline(in))))
+    group_type(in.line, parse(Int64, strip(readline(in))))
 end
 
 
@@ -114,7 +122,7 @@ function valuetype(::Type{T}) where {T <: FloatGroup}
 end
 
 function read_value(group_type::Type{T}, in) where {T <: FloatGroup}
-    group_type(parse(DXFFloatType, strip(readline(in))))
+    group_type(in.line, parse(DXFFloatType, strip(readline(in))))
 end
 
 
