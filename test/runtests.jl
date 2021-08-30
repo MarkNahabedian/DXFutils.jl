@@ -20,6 +20,10 @@ example_file = "c:/Users/Mark Nahabedian/crafts/crafts/TrapezoidalLapJoint/drawi
 
 @testset "read DXF file" begin
     groups = read_dxf_file(example_file)
+    @test all([g isa DXFGroup for g in groups])
+    sections = sectionize(groups)
+    @test all([s isa DXFSection for s in sections])
+    println("Test found $(length(sections)) DXF sections in sample file.")
 end
 
 

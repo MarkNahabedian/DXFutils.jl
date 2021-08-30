@@ -1,5 +1,6 @@
 
 export groupcode, read_value
+export DXFGroup
 
 
 abstract type DXFGroup end
@@ -83,7 +84,7 @@ defDXFGroup(StringGroup, 5, :EntityHandle)
 defDXFGroup(StringGroup, 6)
 defDXFGroup(StringGroup, 7, :TextStyleName)
 defDXFGroup(StringGroup, 8, :LayerName)
-defDXFGroup(StringGroup, 9, :HeaderVariableNamke)
+defDXFGroup(StringGroup, 9, :HeaderVariableName)
 
 
 DXFIntegerType = Int64
