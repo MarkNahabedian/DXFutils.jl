@@ -10,14 +10,14 @@ function sectionize(groups)
     start = nothing
     for (num, group) in enumerate(groups)
         @assert group isa DXFGroup
-        if group isa EntityType && group.value == "EOF"
+        if group == EntityType("EOF")
             break
         end
         if start == nothing
-            @assert group isa EntityType && group.value == "SECTION"
+            @assert group == EntityType("SECTION")
             start = num
         end
-        if group isa EntityType && group.value == "ENDSEC"
+        if group == EntityType("ENDSEC")
             push!(sections, DXFSection(groups[start:num]))
             start = nothing
         end
