@@ -16,4 +16,10 @@ end
     @test grp.value == "SECTION"
 end
 
+example_file = "c:/Users/Mark Nahabedian/crafts/crafts/TrapezoidalLapJoint/drawings/strut-side-view.dxf"
+
+@testset "read DXF file" begin
+    groups = read_dxf_file(example_file)
+end
+
 

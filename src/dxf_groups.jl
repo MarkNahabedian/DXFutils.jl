@@ -8,30 +8,27 @@ DXFGroupCode = Int32
 
 group_code_registry = Dict{DXFGroupCode, Type{<:DXFGroup}}()
 
-value_type_to_group_type = Dict{Type, Type{<:DXFGroup}}()
+function defDXFGroup(group_supertype::Type, code::Integer, name=nothing)
+    defDXFGroup(group_supertype, DXFGroupCode(code), name)
+end
 
-function defDXFGroup(value_type::Type, code::Integer, name=nothing)
+function defDXFGroup(group_supertype::Type, code::DXFGroupCode, name=nothing)
+    @assert group_supertype <: DXFGroup
     if name == nothing
         name = Symbol("Group_$code")
     end
-    if value_type <: DXFGroup
-        group_type = value_type
-        value_type = Any
-    else
-        group_type = value_type_to_group_type[value_type]
-    end
     eval(quote
-             struct $name <: $group_type
-                 value::$value_type
+             struct $name <: $group_supertype
+                 value::$(valuetype(group_supertype))
              end
          end)
     eval(quote
-             function groupcode(::$name)
+             function groupcode(::$name)::DXFGroupCode
                  return $code
              end
          end)
     eval(quote
-             function groupcode(::Type{$name})
+             function groupcode(::Type{$name})::DXFGroupCode
                  return $code
              end
          end)
@@ -47,36 +44,96 @@ end
 
 abstract type RawGroup <: DXFGroup end
 
-function read_value(group_type::Type{T}, in::IO) where T <: RawGroup
+function valuetype(::Type{T}) where {T <: RawGroup}
+    String
+end
+
+function read_value(group_type::Type{T}, in) where {T <: RawGroup}
     group_type(readline(in))
 end
 
 
-abstract type StringGroup <: DXFGroup end
-value_type_to_group_type[String] = StringGroup
+function lookup_group_code(code::DXFGroupCode)
+    if haskey(group_code_registry, code)
+        return group_code_registry[code]
+    end
+    return defDXFGroup(RawGroup, code)
+end
 
-function read_value(group_type::Type{T}, in::IO) where T <: StringGroup
+
+abstract type StringGroup <: DXFGroup end
+
+function valuetype(::Type{T}) where {T <: StringGroup}
+    String
+end
+
+function read_value(group_type::Type{T}, in) where {T <: StringGroup}
     group_type(strip(readline(in)))
 end
 
-defDXFGroup(String, 0, :EntityType)
+defDXFGroup(StringGroup, 0, :EntityType)
 
-defDXFGroup(String, 3)
+defDXFGroup(StringGroup, 3)
 
-defDXFGroup(String, 1, :PrimaryText)
-defDXFGroup(String, 2, :Name)
-defDXFGroup(String, 3)
-defDXFGroup(String, 4)
-defDXFGroup(String, 5, :EntityHandle)
-defDXFGroup(String, 6)
-defDXFGroup(String, 7, :TextStyleName)
-defDXFGroup(String, 8, :LayerName)
-defDXFGroup(String, 9, :HeaderVariableNamke)
+defDXFGroup(StringGroup, 1, :PrimaryText)
+defDXFGroup(StringGroup, 2, :Name)
+defDXFGroup(StringGroup, 3)
+defDXFGroup(StringGroup, 4)
+defDXFGroup(StringGroup, 5, :EntityHandle)
+defDXFGroup(StringGroup, 6)
+defDXFGroup(StringGroup, 7, :TextStyleName)
+defDXFGroup(StringGroup, 8, :LayerName)
+defDXFGroup(StringGroup, 9, :HeaderVariableNamke)
 
+
+DXFIntegerType = Int64
 
 abstract type IntegerGroup <: DXFGroup end
-value_type_to_group_type[Integer] = IntegerGroup
 
-function read_value(group_type::Type{T}, in::IO) where T <: IntegerGroup
-    group_type(parse(Integer, strip(readline(in))))
+function valuetype(::Type{T}) where {T <: IntegerGroup}
+    DXFIntegerType
 end
+
+function read_value(group_type::Type{T}, in) where {T <: IntegerGroup}
+    group_type(parse(Int64, strip(readline(in))))
+end
+
+
+for code in 70:78
+    defDXFGroup(IntegerGroup, code)
+end
+
+
+DXFFloatType = Float64
+
+abstract type FloatGroup <: DXFGroup end
+
+function valuetype(::Type{T}) where {T <: FloatGroup}
+    DXFFloatType
+end
+
+function read_value(group_type::Type{T}, in) where {T <: FloatGroup}
+    group_type(parse(DXFFloatType, strip(readline(in))))
+end
+
+
+abstract type PointX <: FloatGroup end
+abstract type PointY <: FloatGroup end
+abstract type PointZ <: FloatGroup end
+
+defDXFGroup(PointX, 10, :PrimaryXCoordinate)
+defDXFGroup(PointY, 20, :PrimaryYCoordinate)
+defDXFGroup(PointZ, 10, :PrimaryZCoordinate)
+
+for code in 10:18
+    defDXFGroup(PointX, code)
+    defDXFGroup(PointY, code + 10)
+    defDXFGroup(PointZ, code + 20)
+end
+
+for code in 40:47
+    defDXFGroup(PointX, code)
+end
+
+defDXFGroup(PointX, 48, :LinetypeScale)
+
