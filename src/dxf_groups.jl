@@ -220,9 +220,10 @@ for code in 10:18
     defDXFGroup(PointZ, code + 20)
 end
 
+
 for code in 40:47
-    defDXFGroup(PointX, code)
+    defDXFGroup(FloatGroup, code)
 end
 
-defDXFGroup(PointX, 48, :LinetypeScale)
+defDXFGroup(FloatGroup, 48, :LinetypeScale)
 

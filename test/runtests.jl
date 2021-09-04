@@ -108,11 +108,8 @@ end
     end
 end
 
-#=
 @testset "parse sample file" begin
     parser = Parser(example_file)
-    parser.trace_parser_actions = true
-    parser.showstate_in_parse = true
     debugparser(parser; rt=true) do
         parse(parser)
         @test parser isa Parser
@@ -120,7 +117,7 @@ end
         @test parser.pending[1] isa DXFDocument
     end
 end
-=#
+
 
 """
 # Hand testing

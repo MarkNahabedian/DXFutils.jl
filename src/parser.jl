@@ -160,6 +160,21 @@ function grab(parser::Parser)
     return elts
 end
 
+"""
+    lookahead(::Parser)
+return the next input token or nothing.
+A second argument can be passed to specify an offset for additional
+lookahead.
+"""
+function lookahead(parser::Parser, index=0)
+    i = parser.index + index
+    if i > length(parser.groups)
+        nothing
+    else
+        parser.groups[i]
+    end
+end
+
 
 """
 DocumentStart is the start token at the beginning of the document.
@@ -339,7 +354,7 @@ end
 struct DXFPoint <: DXFObject
     pointX::PointX
     pointY::PointY
-    pointZ::PointZ
+    pointZ::Union{Nothing, PointZ}
 
     DXFPoint(contents) = DXFPoint(contents...)
 
@@ -348,6 +363,12 @@ struct DXFPoint <: DXFObject
         @assert groupcode(x) + 20 == groupcode(z) "$x $(groupcode(x)), $z $(groupcode(z))"
         new(x, y, z)
     end
+
+    function DXFPoint(x::PointX, y::PointY)
+        @assert groupcode(x) + 10 == groupcode(y) "$x $(groupcode(x)), $y $(groupcode(y))"
+        new(x, y, nothing)
+    end
+
 end
 
 function Base.summary(io::IO, p::DXFPoint)
@@ -367,9 +388,10 @@ end
 
 function parseraction(parser::Parser, pending::PointX, current::PointY)
     @tracePA(parser)
-    # Just shift, which happened in `parser`.
-    # We need this method to shadow the one on (::Parser, ::PointX,
-    # ::DXFGroup).
+    # Lookahead to figure out if this is a 2D or 3D point:
+    if !isa(lookahead(parser), PointZ)
+        reduce(parser, DXFPoint)
+    end
 end
 
 function parseraction(parser::Parser, pending::PointX, current::PointZ)
