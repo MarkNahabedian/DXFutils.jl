@@ -1,23 +1,27 @@
 
-export DXFSection, sectionize
+export DXFSection, sectionize, DXFSection
 
 struct DXFSection
-    groups::Vector{DXFGroup}
+    groups::Vector
 end
 
-function sectionize(groups)
+function Base.summary(io::IO, section::DXFSection)
+    println("$(typeof(section)) with #(length(section.groups)) elements")
+end
+
+function sectionize(groups::Vector{DXFGroup})
     sections = []
     start = nothing
     for (num, group) in enumerate(groups)
         @assert group isa DXFGroup
-        if group == EntityType("EOF")
+        if groupmatch(group, EntityType("EOF"))
             break
         end
         if start == nothing
-            @assert group == EntityType("SECTION")
+            @assert groupmatch(group, EntityType("SECTION"))
             start = num
         end
-        if group == EntityType("ENDSEC")
+        if groupmatch(group, EntityType("ENDSEC"))
             push!(sections, DXFSection(groups[start:num]))
             start = nothing
         end

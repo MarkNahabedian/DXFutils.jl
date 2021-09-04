@@ -14,7 +14,7 @@ end
 
 
 function read_dxf_file(in::LineNumberingIO)
-    groups = []
+    groups = Vector{DXFGroup}()
     while true
         try
             l = readline(in)
