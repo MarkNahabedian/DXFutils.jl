@@ -220,10 +220,42 @@ for code in 10:18
     defDXFGroup(PointZ, code + 20)
 end
 
+defDXFGroup(PointX, 210, :ExtrucionDirectionX))
+defDXFGroup(PointX, 220, :ExtrucionDirectionY))
+defDXFGroup(PointX, 230, :ExtrucionDirectionZ))
 
 for code in 40:47
     defDXFGroup(FloatGroup, code)
 end
 
 defDXFGroup(FloatGroup, 48, :LinetypeScale)
+
+for code in 49:59
+    defDXFGroup(FloatGroup, code)
+end
+
+
+defDXFGroup*StringGroup, 100, :SubclassMarker)
+
+for code in 110:149
+    defDXFGroup(FloatGroup, code)
+end
+
+for code in 160:179
+    defDXFGroup(IntegerGroup, code)
+end
+
+for code in 210:239
+    defDXFGroup(FloatGroup, code)
+end
+
+for code in 270:289
+    defDXFGroup(IntegerGroup, code)
+end
+
+for code in 370:389
+    defDXFGroup(IntegerGroup, code)
+end
+
+defDXFGroup(StringGroup, 999, :Comment)
 
