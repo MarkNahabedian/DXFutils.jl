@@ -284,6 +284,17 @@ struct DXFDocument <: DXFObject
     contents::Vector
 end
 
+function section(doc::DXFDocument, sect::String)::Union{Nothing, DXFSection}
+    for e in doc.contents
+        if e isa DXFSection
+            if sectiontype(e) == sect
+                return e
+            end
+        end
+    end
+    return nothing
+end
+
 function parseraction(parser::Parser, pending::DocumentStart, current::EntityType_EOF)
     @tracePA(parser)
     reduce(parser, DXFDocument)

@@ -1,12 +1,20 @@
 
-export DXFSection, sectionize, DXFSection
+export DXFSection, sectionize, DXFSection, section, sectiontype
 
 struct DXFSection
-    groups::Vector
+    contents::Vector
 end
 
 function Base.summary(io::IO, section::DXFSection)
-    println("$(typeof(section)) with $(length(section.groups)) elements")
+    println("$(typeof(section)) $(sectiontype(section)) with $(length(section.contents)) elements")
+end
+
+function sectiontype(sec::DXFSection)
+    if sec.contents[2] isa Name
+        sec.contents[2].value
+    else
+        nothing
+    end
 end
 
 function sectionize(groups::Vector{DXFGroup})

@@ -137,4 +137,14 @@ begin
   end
   length(parser.pending)
 end
+
+begin
+  @assert parser.pending[1] isa DXFDocument
+  doc = parser.pending[1]
+  summary(doc)
+  for e in doc.contents
+    summary(e)
+  end
+end
+
 """
