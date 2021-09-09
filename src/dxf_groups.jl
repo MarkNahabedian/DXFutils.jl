@@ -9,7 +9,14 @@ abstract type DXFGroup <: DXFObject end
 
 DXFGroupCode = Int32
 
-group_code_registry = Dict{DXFGroupCode, Type{<:DXFGroup}}()
+group_code_registry = SortedDict{DXFGroupCode, Type{<:DXFGroup}}()
+
+function show_group_code_registry(io::IO)
+    for (key, value) in group_code_registry
+        @printf(io, "%4d\t%s\n", key,
+                join(pedigree(value), " <: "))
+    end
+end
 
 function groupmatch(a::DXFGroup, b::DXFGroup)
     groupcode(a) == groupcode(b) && a.value == b.value
@@ -133,6 +140,8 @@ end
 ensureEntityType("SECTION")
 ensureEntityType("ENDSEC")
 ensureEntityType("EOF")
+ensureEntityType("BLOCK")
+ensureEntityType("ENDBLK")
 
 #=
 ensureEntityType should have defined EntityType_CLASS
@@ -145,8 +154,6 @@ ensureEntityType should have defined EntityType_STYLE
 ensureEntityType should have defined EntityType_APPID
 ensureEntityType should have defined EntityType_DIMSTYLE
 ensureEntityType should have defined EntityType_BLOCK_RECORD
-ensureEntityType should have defined EntityType_BLOCK
-ensureEntityType should have defined EntityType_ENDBLK
 ensureEntityType should have defined EntityType_LINE
 ensureEntityType should have defined EntityType_DICTIONARY
 ensureEntityType should have defined EntityType_ACDBDICTIONARYWDFLT
@@ -166,7 +173,7 @@ ensureEntityType should have defined EntityType_DICTIONARYVAR
 
 defDXFGroup(StringGroup, 1, :PrimaryText)
 defDXFGroup(StringGroup, 2, :Name)
-defDXFGroup(StringGroup, 3)
+defDXFGroup(StringGroup, 3, :EntryName)
 defDXFGroup(StringGroup, 4)
 defDXFGroup(StringGroup, 5, :EntityHandle)
 defDXFGroup(StringGroup, 6)
@@ -210,19 +217,17 @@ abstract type PointX <: FloatGroup end
 abstract type PointY <: FloatGroup end
 abstract type PointZ <: FloatGroup end
 
-defDXFGroup(PointX, 10, :PrimaryCoordinateX)
-defDXFGroup(PointY, 20, :PrimaryCoordinateY)
-defDXFGroup(PointZ, 30, :PrimaryCoordinateZ)
+export PointX, PointY, PointZ
 
 for code in 10:18
-    defDXFGroup(PointX, code)
-    defDXFGroup(PointY, code + 10)
-    defDXFGroup(PointZ, code + 20)
+    defDXFGroup(PointX, code,      Symbol("Point$(code)_X"))
+    defDXFGroup(PointY, code + 10, Symbol("Point$(code + 10)_Y"))
+    defDXFGroup(PointZ, code + 20, Symbol("Point$(code + 20)_Z"))
 end
 
-defDXFGroup(PointX, 210, :ExtrucionDirectionX))
-defDXFGroup(PointX, 220, :ExtrucionDirectionY))
-defDXFGroup(PointX, 230, :ExtrucionDirectionZ))
+defDXFGroup(PointX, 210, :ExtrucionDirectionX)
+defDXFGroup(PointX, 220, :ExtrucionDirectionY)
+defDXFGroup(PointX, 230, :ExtrucionDirectionZ)
 
 for code in 40:47
     defDXFGroup(FloatGroup, code)
@@ -235,7 +240,9 @@ for code in 49:59
 end
 
 
-defDXFGroup*StringGroup, 100, :SubclassMarker)
+defDXFGroup(StringGroup, 100, :SubclassMarker)
+
+defDXFGroup(StringGroup, 102, :ADGroupStartEnd)
 
 for code in 110:149
     defDXFGroup(FloatGroup, code)
@@ -253,8 +260,20 @@ for code in 270:289
     defDXFGroup(IntegerGroup, code)
 end
 
+abstract type HexIdString <: StringGroup end
+
+for code in 330:369
+    defDXFGroup(HexIdString, code)
+end
+
 for code in 370:389
     defDXFGroup(IntegerGroup, code)
+end
+
+abstract type HexHandleString <: StringGroup end
+
+for code in 390:399
+    defDXFGroup(HexHandleString, code)
 end
 
 defDXFGroup(StringGroup, 999, :Comment)

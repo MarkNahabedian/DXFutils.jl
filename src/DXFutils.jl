@@ -1,5 +1,6 @@
 module DXFutils
 
+using DataStructures
 using Printf
 import Base.parse
 

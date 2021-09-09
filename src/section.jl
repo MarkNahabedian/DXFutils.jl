@@ -6,7 +6,7 @@ struct DXFSection
 end
 
 function Base.summary(io::IO, section::DXFSection)
-    println("$(typeof(section)) with #(length(section.groups)) elements")
+    println("$(typeof(section)) with $(length(section.groups)) elements")
 end
 
 function sectionize(groups::Vector{DXFGroup})

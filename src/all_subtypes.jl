@@ -1,7 +1,9 @@
 
 using InteractiveUtils
 
-function allsubtypes(t::Type, result=Set())
+export allsubtypes, pedigree
+
+function allsubtypes(t::Type, result=Vector{Type}())
     push!(result, t)
     for st in subtypes(t)
 	allsubtypes(st, result)
@@ -15,5 +17,13 @@ function showsubtypes(t::Type, level=0)
     for st in subtypes(t)
         showsubtypes(st, level + 1)
     end
+end
+
+function pedigree(t::Type, result=Vector{Type}())
+    push!(result, t)
+    if supertype(t) != t
+        pedigree(supertype(t), result)
+    end
+    result
 end
 

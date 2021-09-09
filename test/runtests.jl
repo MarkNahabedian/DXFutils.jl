@@ -22,6 +22,9 @@ example_file = "c:/Users/Mark Nahabedian/crafts/crafts/TrapezoidalLapJoint/drawi
 @testset "read DXF file" begin
     groups = read_dxf_file(example_file)
     @test all([g isa DXFGroup for g in groups])
+    open("DXF-groups.txt", "w") do io
+        DXFutils.show_group_code_registry(io)
+    end
     ###
     #=
     sections = sectionize(groups)
@@ -51,9 +54,9 @@ end
         EntityType("SECTION"),
         Name("HEADER"),
         HeaderVariableName("foo"),
-        PrimaryCoordinateX(1.0),
-        PrimaryCoordinateY(2.0),
-        PrimaryCoordinateZ(3.0) ]))
+        Point10_X(1.0),
+        Point20_Y(2.0),
+        Point30_Z(3.0) ]))
     debugparser(parser; rt=true) do
         # @test_throws IncompleteDXFInput parse(parser)
         try

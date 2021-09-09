@@ -293,8 +293,8 @@ end
 # Sections and Entities
 
 # A section can only follow the document start token or another sectioon:
-function parseraction(::Parser, ::DocumentStart, ::DXFSection) end
-function parseraction(::Parser, ::DXFSection, ::DXFSection) end
+function parseraction(parser::Parser, ::DocumentStart, ::DXFSection) @tracePA(parser) end
+function parseraction(parser::Parser, ::DXFSection, ::DXFSection) @tracePA(parser) end
 
 function parseraction(parser::Parser, pending::DocumentStart, current::EntityType_SECTION)
     @tracePA(parser)
@@ -329,23 +329,56 @@ function Base.summary(io::IO, v::HeaderVariable)
     println("$(typeof(v)) $(v.name) = $(v.value)")
 end
 
+### Maybe make this pending::EntityType_SECTION and test that section is HEADER.
 function parseraction(parser::Parser, pending::DXFObject, current::HeaderVariableName)
     @tracePA(parser)
     start(parser)
 end
 
-function parseraction(parser::Parser, pending::HeaderVariableName, current::DXFGroup)
+function parseraction(parser::Parser, pending::HeaderVariableName, current::DXFObject)
     @tracePA(parser)
     reduce(parser, HeaderVariable)
+end
+
+function parseraction(parser::Parser, pending::HeaderVariableName, current::DXFGroup)
+    @tracePA(parser)
+    invoke(parseraction, Tuple{Parser, HeaderVariableName, DXFObject},
+           parser, pending, current)
+end
+
+function parseraction(parser::Parser, pending::HeaderVariableName, current::PointX)
+    invoke(parseraction, Tuple{Parser, DXFObject, PointX}, parser, pending, current)
 end
 
 function parseraction(parser::Parser, pending::EntityType_SECTION, current::HeaderVariable)
     @tracePA(parser)
     @assert parser.pending[pendingindex(parser)] == pending
+    #=
     if !groupmatch(parser.pending[pendingindex(parser) + 1], Name("HEADER"))
         throw(UnexpectedDXFInput(parser, pending, current,
                                  "Header variable not in HEADER section"))
     end
+    =#
+end
+
+
+# Blocks
+
+struct DXFBolck <: DXFObject
+    contents::Vector{DXFObject}
+end
+
+function Base.summary(io::IO, blk::DXFBolck)
+    println("$(typeof(blk)) with $(length(blk.groups)) elements")
+end
+
+function parseraction(parser::Parser, pending::EntityType_BLOCK, current::DXFObject)
+    @tracePA(parser)
+end
+
+function parseraction(parser::Parser, pending::EntityType_BLOCK, current::EntityType_ENDBLK)
+    @tracePA(parser)
+    reduce(parser, DXFBlock)
 end
 
 
@@ -368,16 +401,24 @@ struct DXFPoint <: DXFObject
         @assert groupcode(x) + 10 == groupcode(y) "$x $(groupcode(x)), $y $(groupcode(y))"
         new(x, y, nothing)
     end
+end
 
+# We need some simple way to distinguish points of different types.
+function groupcode(point::DXFPoint)
+    groupcode(point.pointX)
 end
 
 function Base.summary(io::IO, p::DXFPoint)
     println("$(typeof(p)) $(p.poinmtX.value), $p.pointY.value), $(p.pointZ.value)")
 end
 
-function parseraction(parser::Parser, pending::HeaderVariableName, current::PointX)
+function parseraction(parser::Parser, pending::DXFObject, current::PointX)
     @tracePA(parser)
     start(parser)
+end
+
+function parseraction(parser::Parser, pending::HeaderVariableName, current::PointX)
+    invoke(parseraction, Tuple{Parser, DXFObject, PointX}, parser, pending, current)
 end
 
 function parseraction(parser::Parser, pending::PointX, current::DXFGroup)
@@ -406,8 +447,44 @@ function parseraction(parser::Parser, pending::PointX, current::PointX)
                         "PointX in context of PointX"))
 end
 
-function parseraction(parser::Parser, pending ::HeaderVariableName, current::DXFPoint)
+### For now at least DXFPoint can be contained by a DXFSection
+function parseraction(parser::Parser, ::EntityType_SECTION, ::DXFPoint)
     @tracePA(parser)
-    reduce(parser, HeaderVariable)
+end
+
+
+struct ADGroup <: DXFObject
+    contents
+end
+
+function parseraction(parser::Parser, pending::DXFObject, current::ADGroupStartEnd)
+    @tracePA(parser)
+    if length(current.value) > 1 && current.value[1] == '{'
+        start(parser)
+    else
+        #=
+        # We see ADGroupStartEnd groups that start with neither '{' nor '}'.
+        # Until we understand more, just shift them.
+        # We might eventually consaume the next entity to produce
+        # an ADGroup with a single element, but until we know what that
+        # content element can be we can't tell when to reduce.
+        throw(UnexpectedDXFInput(parser, pending, current,
+                           "non-opening ADGroupStartEnd in unexpected context"))
+        =#
+    end
+end
+
+function parseraction(parser::Parser, pending::ADGroupStartEnd, current::ADGroupStartEnd)
+    @tracePA(parser)
+    if length(current.value) == 1 && current.value[1] == '}'
+        reduce(parser, ADGroup)
+    else
+        throw(UnexpectedDXFInput(parser, pending, current,
+                           "non-closing ADGroupStartEnd in unexpected context"))
+    end        
+end
+
+function parseraction(parser::Parser, pending::DXFObject, current::ADGroup)
+    @tracePA(parser)
 end
 
