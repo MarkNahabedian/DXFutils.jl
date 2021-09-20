@@ -24,6 +24,7 @@ Base.@kwdef mutable struct Parser
     # Debugging flags
     trace_parser_actions = false  # See @tracePA, start, reduce
     showstate_in_parse = false    # Call showstate in each iteration of parse loop
+    trace_disambiguation = false  # trace disambiguation of parseraction methods
 end
 
 function Parser(groups::Vector{DXFGroup})
@@ -125,6 +126,19 @@ function pending(parser::Parser)
 end
 
 """
+    shift(::Parser)
+Shift the next input token from `parser.groups` to `parser.pending`.
+"""
+function shift(parser::Parser)
+    push!(parser.pending, parser.groups[parser.index])
+    parser.index += 1
+    nothing
+end
+
+START_GROUP_TYPES = [
+]
+
+"""
     start(::Parser)
 Declare that the topmost token of `pending` is a start token
 by pushing its index onto the `start` stack.
@@ -136,15 +150,14 @@ function start(parser::Parser)
     push!(parser.starts, lastindex(parser.pending))
 end
 
-function reduce(parser::Parser, constructor)
-    grabbed = grab(parser)
+function reduce(parser::Parser, constructor, fromend=0)
+    grabbed = grab(parser; fromend)
     reduction = constructor(grabbed)
-    push!(parser.pending, reduction)
+    insert!(parser.pending,
+            lastindex(parser.pending) + 1 - fromend,
+            reduction)
     if parser.trace_parser_actions
         println("Reduced $(length(grabbed)) to $reduction")
-    end
-    if length(parser.starts) > 0
-        parseraction(parser)
     end
 end
 
@@ -152,9 +165,11 @@ end
     grab(::Parser)
 Remove the elements pf the pending stack from the topmost start token
 to the topmost token and return them.
+
+`fromend` is a non-negative number counting from `lastindex`..
 """
-function grab(parser::Parser)
-    range = pop!(parser.starts):lastindex(parser.pending)
+function grab(parser::Parser; fromend=0)
+    range = pop!(parser.starts):(lastindex(parser.pending) - fromend)
     elts = parser.pending[range]
     deleteat!(parser.pending, range)
     return elts
@@ -199,9 +214,7 @@ function parse(parser::Parser)
     push!(parser.pending, DocumentStart())
     start(parser)
     while length(parser.starts) > 0 && parser.index <= length(parser.groups)
-        # Shift the next token into pending
-        push!(parser.pending, parser.groups[parser.index])
-        parser.index += 1
+        shift(parser)
         if parser.showstate_in_parse
             showstate(parser)
         end
@@ -217,22 +230,6 @@ end
 
 
 function tracePA_(frame)
-    #=
-    function sttest(a::Real, b, c)
-        first(stacktrace())
-    end
-
-    fieldnames(typeof(sttest(1.2,2,3)))    # Base.StackTraces.StackFrame
-    (:func, :file, :line, :linfo, :from_c, :inlined, :pointer)
-
-    fieldnames(typeof(sttest(1.2,2,3).linfo))     # Core.MethodInstance
-    (:def, :specTypes, :sparam_vals, :uninferred, :backedges, :callbacks, :cache, :inInference)
-
-    fieldnames(sttest(1.2,2,3).linfo.def)       Method
-    (:name, :module, :file, :line, :primary_world, :deleted_world, :sig, :specializations,
-    :speckeyset, :slot_syms, :source, :unspecialized, :generator, :roots, :ccallable,
-    :invokes, :nargs, :called, :nospecialize, :nkw, :isva, :pure)
-    =#
     ip = 3:4   # interesting parameters to show
     psig(t) = fieldtypes(t)[ip]
     @assert frame.func == :parseraction
@@ -256,12 +253,72 @@ Each parseraction is a shift/reduce rule of our DXF parser.
 function parseraction end
 
 function parseraction(parser::Parser)
+    if length(parser.starts) <= 0
+        return
+    end
     p = pending(parser)
     c = current(parser)
     if parser.trace_parser_actions
-        println("parseraction $p $c")
+        println("parseraction for $p $c")
     end
-    parseraction(parser, p, c)
+    try
+        parseraction(parser, p, c)
+    catch e
+        if !(e isa Base.MethodError)
+            rethrow(e)
+        end
+        if e.f != parseraction
+            rethrow(e)
+        end
+        if length(e.args) == 1
+            # Do not handle the one argument call to parseraction
+            rethrow(e)
+        end
+        msg = IOBuffer()
+        showerror(msg, e)
+        msg = String(take!(msg))
+        # I wish MethodError had subtypes to distinguish "no
+        # applicable method" from "ambiguous methods".
+        if !occursin("is ambiguous", msg)
+            rethrow(e)
+        end
+        best = nothing
+        for m in methods(parseraction)
+            if length(m.sig.parameters) != 4
+                continue
+            end
+            if !all(isa.(e.args, m.sig.parameters[2:length(m.sig.parameters)]))
+                # m is not applicable
+                continue
+            end
+            if best == nothing
+                best = m
+                continue
+            end
+            # proper subtype?
+            better(spec1, spec2) = (spec1 <: spec2) && !(spec2 <: spec1)
+            for pos in ((1, 3, 2).+1)   # m.sig[1] is the type of the function.
+                mspec = m.sig.parameters[pos]
+                bspec = best.sig.parameters[pos]
+                if better(bspec, mspec)
+                    break
+                end
+                if better(mspec, bspec)
+                    if parser.trace_disambiguation
+                        println("@@ $pos: $mspec of $m preferred to\n      $bspec of $best")
+                    end
+                    best = m
+                    break
+                end
+            end
+        end
+        if best == nothing
+            rethrow(e)
+        end
+        invoke(e.f,
+               Tuple{best.sig.parameters[2:length(best.sig.parameters)]...},
+               e.args...)
+    end
 end
 
 """
@@ -269,7 +326,7 @@ The default behavior is to shift the new token into pending.
 Shifting of input DXFGroups happens in `parser`, whiuch shifts
 all new tokens before calling `parseraction`.
 """
-function parseraction(parser::Parser, pending::DXFObject, current::DXFGroup)
+function parseraction(parser::Parser, pending::DXFGroup, current::DXFObject)
     @tracePA(parser)
     # Just shift, which happened in the caller.
 end
@@ -298,6 +355,7 @@ end
 function parseraction(parser::Parser, pending::DocumentStart, current::EntityType_EOF)
     @tracePA(parser)
     reduce(parser, DXFDocument)
+    parseraction(parser)
 end
 
 
@@ -321,6 +379,40 @@ end
 function parseraction(parser::Parser, pending::EntityType_SECTION, current::EntityType_ENDSEC)
     @tracePA(parser)
     reduce(parser, DXFSection)
+    parseraction(parser)
+end
+
+
+# Non-section entities
+
+# It seems that one entity ends where the next one begins.
+
+struct DXFEntity
+    contents::Vector
+end
+
+function Base.summary(io::IO, ent::DXFEntity)
+    println("$(typeof(ent)) $(ent.contents[1].value)) with $(length(ent.contents)) elements")
+end
+
+function parseraction(parser::Parser, pending::EntityType_SECTION, current::EntityType)
+    @tracePA(parser)
+    start(parser)
+end
+
+function parseraction(parser::Parser, pending::EntityType, current::EntityType)
+    @tracePA(parser)
+    # `current` starts a new entity.  First we must finish the previous one:
+    reduce(parser, DXFEntity, 1)
+    start(parser)
+end
+
+function parseraction(parser::Parser, pending::EntityType, current::EntityType_ENDSEC)
+    @tracePA(parser)
+    # ENDSEC closes the currently open entity and the section that
+    # contains it.
+    reduce(parser, DXFEntity, 1)
+    parseraction(parser)
 end
 
 
@@ -341,7 +433,7 @@ function Base.summary(io::IO, v::HeaderVariable)
 end
 
 ### Maybe make this pending::EntityType_SECTION and test that section is HEADER.
-function parseraction(parser::Parser, pending::DXFObject, current::HeaderVariableName)
+function parseraction(parser::Parser, pending::DXFGroup, current::HeaderVariableName)
     @tracePA(parser)
     start(parser)
 end
@@ -349,38 +441,23 @@ end
 function parseraction(parser::Parser, pending::HeaderVariableName, current::DXFObject)
     @tracePA(parser)
     reduce(parser, HeaderVariable)
-end
-
-function parseraction(parser::Parser, pending::HeaderVariableName, current::DXFGroup)
-    @tracePA(parser)
-    invoke(parseraction, Tuple{Parser, HeaderVariableName, DXFObject},
-           parser, pending, current)
-end
-
-function parseraction(parser::Parser, pending::HeaderVariableName, current::PointX)
-    invoke(parseraction, Tuple{Parser, DXFObject, PointX}, parser, pending, current)
+    parseraction(parser)
 end
 
 function parseraction(parser::Parser, pending::EntityType_SECTION, current::HeaderVariable)
     @tracePA(parser)
     @assert parser.pending[pendingindex(parser)] == pending
-    #=
-    if !groupmatch(parser.pending[pendingindex(parser) + 1], Name("HEADER"))
-        throw(UnexpectedDXFInput(parser, pending, current,
-                                 "Header variable not in HEADER section"))
-    end
-    =#
 end
 
 
 # Blocks
 
-struct DXFBolck <: DXFObject
+struct DXFBlock <: DXFObject
     contents::Vector{DXFObject}
 end
 
-function Base.summary(io::IO, blk::DXFBolck)
-    println("$(typeof(blk)) with $(length(blk.groups)) elements")
+function Base.summary(io::IO, blk::DXFBlock)
+    println("$(typeof(blk)) with $(length(blk.contents)) elements")
 end
 
 function parseraction(parser::Parser, pending::EntityType_BLOCK, current::DXFObject)
@@ -390,6 +467,7 @@ end
 function parseraction(parser::Parser, pending::EntityType_BLOCK, current::EntityType_ENDBLK)
     @tracePA(parser)
     reduce(parser, DXFBlock)
+    parseraction(parser)
 end
 
 
@@ -423,13 +501,17 @@ function Base.summary(io::IO, p::DXFPoint)
     println("$(typeof(p)) $(p.poinmtX.value), $p.pointY.value), $(p.pointZ.value)")
 end
 
-function parseraction(parser::Parser, pending::DXFObject, current::PointX)
+function parseraction(parser::Parser, pending::DXFGroup, current::PointX)
     @tracePA(parser)
     start(parser)
-end
-
-function parseraction(parser::Parser, pending::HeaderVariableName, current::PointX)
-    invoke(parseraction, Tuple{Parser, DXFObject, PointX}, parser, pending, current)
+    if lookahead(parser) isa PointY
+        shift(parser)
+    end
+    if lookahead(parser) isa PointZ
+        shift(parser)
+    end
+    reduce(parser, DXFPoint)
+    parseraction(parser)
 end
 
 function parseraction(parser::Parser, pending::PointX, current::DXFGroup)
@@ -438,25 +520,6 @@ function parseraction(parser::Parser, pending::PointX, current::DXFGroup)
                              "Expected PointY or PointZ after PointX, got $current"))
 end
 
-function parseraction(parser::Parser, pending::PointX, current::PointY)
-    @tracePA(parser)
-    # Lookahead to figure out if this is a 2D or 3D point:
-    if !isa(lookahead(parser), PointZ)
-        reduce(parser, DXFPoint)
-    end
-end
-
-function parseraction(parser::Parser, pending::PointX, current::PointZ)
-    @tracePA(parser)
-    reduce(parser, DXFPoint)
-end
-
-##### Temporary method to find a bug
-function parseraction(parser::Parser, pending::PointX, current::PointX)
-    @tracePA(parser)
-    throw(UnexpectedDXFInput(parser, pending, current,
-                        "PointX in context of PointX"))
-end
 
 ### For now at least DXFPoint can be contained by a DXFSection
 function parseraction(parser::Parser, ::EntityType_SECTION, ::DXFPoint)
@@ -468,7 +531,7 @@ struct ADGroup <: DXFObject
     contents
 end
 
-function parseraction(parser::Parser, pending::DXFObject, current::ADGroupStartEnd)
+function parseraction(parser::Parser, pending::DXFGroup, current::ADGroupStartEnd)
     @tracePA(parser)
     if length(current.value) > 1 && current.value[1] == '{'
         start(parser)
@@ -489,13 +552,14 @@ function parseraction(parser::Parser, pending::ADGroupStartEnd, current::ADGroup
     @tracePA(parser)
     if length(current.value) == 1 && current.value[1] == '}'
         reduce(parser, ADGroup)
+        parseraction(parser)
     else
         throw(UnexpectedDXFInput(parser, pending, current,
                            "non-closing ADGroupStartEnd in unexpected context"))
     end        
 end
 
-function parseraction(parser::Parser, pending::DXFObject, current::ADGroup)
+function parseraction(parser::Parser, pending::DXFGroup, current::ADGroup)
     @tracePA(parser)
 end
 
