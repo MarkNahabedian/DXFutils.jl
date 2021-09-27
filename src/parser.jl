@@ -34,6 +34,7 @@ end
 
 function showstate(parser::Parser)
     showstate(stdout, parser)
+    nothing
 end
 
 function showstate(io::IO, parser::Parser)
@@ -47,11 +48,12 @@ function showstate(io::IO, parser::Parser)
         isstart = level <= length(parser.starts) && parser.starts[level] == i
         spaces = repeat("  ", level)
         prefix = if isstart "[" else " " end
-        @printf("%8d%s%s %s\n", i, spaces, prefix, t)
+        @printf("%8d%s%s %s\n", i, spaces, prefix, summary(t))
         if isstart
             level += 1
         end
     end
+    nothing
 end
 
 """
@@ -191,10 +193,34 @@ function lookahead(parser::Parser, index=0)
 end
 
 
+# Supertype for DXFObjects that have a contents shot:
+abstract type DXFContentsObject <: DXFObject end
+    
+function Base.summary(io::IO, o::DXFContentsObject)
+    print(io, "$(typeof(o)) $(o.contents[1].value)) with $(length(o.contents)) elements")
+end
+
+
 """
 DocumentStart is the start token at the beginning of the document.
 """
 struct DocumentStart <: DXFObject
+end
+
+function Base.getproperty(ds::DocumentStart, p::Symbol)
+    if p == :value
+        return nothing
+    end
+    getfield(ds, p)
+end
+
+function Base.propertynames(ds::DocumentStart, private::Bool)
+    [ :value,
+      fieldnames(typeof(ds))... ]
+end
+
+function Base.summary(io::IO, ds::DocumentStart)
+    print(io, "$(typeof(ds))")
 end
 
 function parse(groups::Vector{DXFGroup})
@@ -337,7 +363,7 @@ end
 """
 DocumentStart represents an entire DXF document.
 """
-struct DXFDocument <: DXFObject
+struct DXFDocument <: DXFContentsObject
     contents::Vector
 end
 
@@ -387,12 +413,8 @@ end
 
 # It seems that one entity ends where the next one begins.
 
-struct DXFEntity
+struct DXFEntity <: DXFContentsObject
     contents::Vector
-end
-
-function Base.summary(io::IO, ent::DXFEntity)
-    println("$(typeof(ent)) $(ent.contents[1].value)) with $(length(ent.contents)) elements")
 end
 
 function parseraction(parser::Parser, pending::EntityType_SECTION, current::EntityType)
@@ -429,7 +451,7 @@ struct HeaderVariable <: DXFObject
 end
 
 function Base.summary(io::IO, v::HeaderVariable)
-    println("$(typeof(v)) $(v.name) = $(v.value)")
+    print(io, "$(typeof(v)) $(v.name) = $(v.value)")
 end
 
 ### Maybe make this pending::EntityType_SECTION and test that section is HEADER.
@@ -452,12 +474,8 @@ end
 
 # Blocks
 
-struct DXFBlock <: DXFObject
+struct DXFBlock <: DXFContentsObject
     contents::Vector{DXFObject}
-end
-
-function Base.summary(io::IO, blk::DXFBlock)
-    println("$(typeof(blk)) with $(length(blk.contents)) elements")
 end
 
 function parseraction(parser::Parser, pending::EntityType_BLOCK, current::DXFObject)
@@ -498,7 +516,7 @@ function groupcode(point::DXFPoint)
 end
 
 function Base.summary(io::IO, p::DXFPoint)
-    println("$(typeof(p)) $(p.poinmtX.value), $p.pointY.value), $(p.pointZ.value)")
+    print(io, "$(typeof(p)) $(p.poinmtX.value), $p.pointY.value), $(p.pointZ.value)")
 end
 
 function parseraction(parser::Parser, pending::DXFGroup, current::PointX)

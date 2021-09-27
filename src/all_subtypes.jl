@@ -1,7 +1,7 @@
 
 using InteractiveUtils
 
-export allsubtypes, pedigree
+export allsubtypes, showsubtypes, pedigree
 
 function allsubtypes(t::Type, result=Vector{Type}())
     push!(result, t)
