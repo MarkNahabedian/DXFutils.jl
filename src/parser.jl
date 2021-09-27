@@ -3,6 +3,7 @@
 export Parser, parse, debugparser, showstate
 export DXFParseError, IncompleteDXFInput, UnexpectedDXFInput
 export DXFDocument, HeaderVariable, DXFPoint
+export DXFSection, sectiontype, sections, section
 export tracing_parser
 
 
@@ -196,6 +197,14 @@ end
 # Supertype for DXFObjects that have a contents shot:
 abstract type DXFContentsObject <: DXFObject end
     
+function Base.iterate(o::DXFContentsObject)
+    iterate(o.contents)
+end
+
+function Base.iterate(o::DXFContentsObject, state)
+    iterate(o.contents, state)
+end
+
 function Base.summary(io::IO, o::DXFContentsObject)
     print(io, "$(typeof(o)) $(o.contents[1].value)) with $(length(o.contents)) elements")
 end
@@ -367,6 +376,20 @@ struct DXFDocument <: DXFContentsObject
     contents::Vector
 end
 
+function sections(doc::DXFDocument)
+    sections = []
+    for s in doc
+        if !isa(s, DXFSection)
+            continue
+        end
+        n = sectiontype(s)
+        if n != nothing
+            push!(sections, n)
+        end
+    end
+    sections
+end
+
 function section(doc::DXFDocument, sect::String)::Union{Nothing, DXFSection}
     for e in doc.contents
         if e isa DXFSection
@@ -386,6 +409,23 @@ end
 
 
 # Sections and Entities
+
+struct DXFSection <: DXFContentsObject
+    contents::Vector
+end
+
+function Base.summary(io::IO, section::DXFSection)
+    println("$(typeof(section)) $(sectiontype(section)) with $(length(section.contents)) elements")
+end
+
+function sectiontype(sec::DXFSection)
+    if sec.contents[2] isa Name
+        sec.contents[2].value
+    else
+        nothing
+    end
+end
+
 
 # A section can only follow the document start token or another sectioon:
 function parseraction(parser::Parser, ::DocumentStart, ::DXFSection) @tracePA(parser) end

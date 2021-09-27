@@ -25,12 +25,6 @@ example_file = "c:/Users/Mark Nahabedian/crafts/crafts/TrapezoidalLapJoint/drawi
     open("DXF-groups.txt", "w") do io
         DXFutils.show_group_code_registry(io)
     end
-    ###
-    #=
-    sections = sectionize(groups)
-    @test all([s isa DXFSection for s in sections])
-    println("Test found $(length(sections)) DXF sections in sample file.")
-    ==#
 end
 
 
