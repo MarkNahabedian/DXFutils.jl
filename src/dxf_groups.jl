@@ -225,9 +225,9 @@ for code in 10:18
     defDXFGroup(PointZ, code + 20, Symbol("Point$(code + 20)_Z"))
 end
 
-defDXFGroup(PointX, 210, :ExtrucionDirectionX)
-defDXFGroup(PointX, 220, :ExtrucionDirectionY)
-defDXFGroup(PointX, 230, :ExtrucionDirectionZ)
+defDXFGroup(PointX, 210, :ExtrusionDirectionX)
+defDXFGroup(PointY, 220, :ExtrusionDirectionY)
+defDXFGroup(PointZ, 230, :ExtrusionDirectionZ)
 
 for code in 40:47
     defDXFGroup(FloatGroup, code)
