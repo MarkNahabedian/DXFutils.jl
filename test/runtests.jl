@@ -120,24 +120,23 @@ end
 # Hand testing
 
 begin
-  groups = read_dxf_file(example_file)
-  length(groups)
-end
-
-begin
-  parser = Parser(groups)
-  debugparser(parser; rt=true) do
-    parse(parser)
-  end
-  length(parser.pending)
-end
-
-begin
-  @assert parser.pending[1] isa DXFDocument
+  parser = Parser(example_file)
+  showstate(parse(parser))
   doc = parser.pending[1]
-  summary(doc)
-  for e in doc.contents
-    summary(e)
+  for s in doc
+    println(summary(s))
+  end
+  println("\n***** Points")
+  pointpaths = dxffind(x -> x isa DXFPoint, doc)
+  for pp in pointpaths
+    println(reverse([summary(x) for x in pp]))
+  end
+  println("\n***** Lines")
+  linepaths = dxffind(doc) do x
+    isa(x, DXFutils.DXFEntity) && x.contents[1].value == "LINE"
+  end
+  for lp in linepaths
+    println(reverse([summary(x) for x in lp]))
   end
 end
 
