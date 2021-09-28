@@ -2,7 +2,7 @@
 
 export Parser, parse, debugparser, showstate
 export DXFParseError, IncompleteDXFInput, UnexpectedDXFInput
-export DXFDocument, HeaderVariable, DXFPoint
+export DXFDocument, HeaderVariable, DXFPoint, DXFEntity, DXFBlock
 export DXFSection, sectiontype, sections, section
 export tracing_parser
 
@@ -209,6 +209,26 @@ function Base.summary(io::IO, o::DXFContentsObject)
     print(io, "$(typeof(o)) $(o.contents[1].value)) with $(length(o.contents)) elements")
 end
 
+function Base.getproperty(o::DXFContentsObject, p::Symbol)
+    if hasfield(typeof(o), p)
+        return getfield(o, p)
+    end
+    if p == :line
+        # The line number of a DXFObject is the line number of its
+        # first group:
+        return o.contents[1].line
+    end
+    # To get the standard missing field error, since there doesn't
+    # seem to be a defined Exception type for this yet:
+    getfield(o, p)
+end
+
+function Base.propertynames(o::DXFContentsObject, private::Bool)
+    [ :line,
+      fieldnames(typeof(o, private))... ]
+end
+
+
 
 """
 DocumentStart is the start token at the beginning of the document.
@@ -225,7 +245,7 @@ end
 
 function Base.propertynames(ds::DocumentStart, private::Bool)
     [ :value,
-      fieldnames(typeof(ds))... ]
+      fieldnames(typeof(ds, private))... ]
 end
 
 function Base.summary(io::IO, ds::DocumentStart)
@@ -415,7 +435,7 @@ struct DXFSection <: DXFContentsObject
 end
 
 function Base.summary(io::IO, section::DXFSection)
-    println("$(typeof(section)) $(sectiontype(section)) with $(length(section.contents)) elements")
+    println(io, "$(typeof(section)) $(sectiontype(section)) with $(length(section.contents)) elements")
 end
 
 function sectiontype(sec::DXFSection)
@@ -556,7 +576,8 @@ function groupcode(point::DXFPoint)
 end
 
 function Base.summary(io::IO, p::DXFPoint)
-    print(io, "$(typeof(p)) $(p.poinmtX.value), $p.pointY.value), $(p.pointZ.value)")
+    val(x) = if x isa DXFGroup x.value else nothing end
+    print(io, "$(typeof(p)) $(val(p.pointX)), $(val(p.pointY)), $(val(p.pointZ))")
 end
 
 function parseraction(parser::Parser, pending::DXFGroup, current::PointX)
@@ -585,7 +606,7 @@ function parseraction(parser::Parser, ::EntityType_SECTION, ::DXFPoint)
 end
 
 
-struct ADGroup <: DXFObject
+struct ADGroup <: DXFContentsObject
     contents
 end
 
